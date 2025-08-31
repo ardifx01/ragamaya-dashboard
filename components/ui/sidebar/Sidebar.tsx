@@ -17,12 +17,12 @@ export default function Sidebar(props: SidebarProps) {
     const links = [
         {
             label: "Dashboard",
-            href: "/dashboard", // Update to the actual route
+            href: "/", // Update to the actual route
             icon: <IconDashboard className="h-5 w-5 shrink-0 text-gray-300" />,
         },
         {
             label: "Pengajuan Tarik Tunai",
-            href: "/dashboard/wallet", // Update to the actual route
+            href: "/withdraw", // Update to the actual route
             icon: <IconWallet className="h-5 w-5 shrink-0 text-gray-300" />,
         },
     ];

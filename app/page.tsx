@@ -5,7 +5,7 @@ import Sidebar from "@/components/ui/sidebar/Sidebar";
 
 export default function Home() {
   return (
-    <Sidebar activeLink="Pengajuan Tarik Tunai">
+    <Sidebar activeLink="Dashboard">
         <div></div>
     </Sidebar>
   );

@@ -31,7 +31,7 @@ const SidebarContent: React.FC<SidebarProps> = ({ open, setOpen, activeLink, lin
                         </span>
                         {open && (
                             <div className="text-sm text-gray-400 mt-1">
-                                Seller Dashboard
+                                Admin Dashboard
                             </div>
                         )}
                     </div>
@@ -53,20 +53,6 @@ const SidebarContent: React.FC<SidebarProps> = ({ open, setOpen, activeLink, lin
                                 />
                             </div>
                         ))}
-                    </div>
-                </div>
-
-                {/* User Profile Section */}
-                <div className="border-t border-gray-700 pt-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                            <IconUserBolt className="h-4 w-4 text-white" />
-                        </div>
-                        {open && (
-                            <div className="flex-1">
-                                <div className="text-sm font-medium text-white">{userData.name}</div>
-                            </div>
-                        )}
                     </div>
                 </div>
             </SidebarBody>
