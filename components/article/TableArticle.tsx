@@ -8,8 +8,11 @@ import {
     createColumnHelper,
 } from '@tanstack/react-table';
 import { Loader2, Search, Filter, RefreshCw, Edit, Trash2, Eye, Plus } from 'lucide-react';
-import {Button, useDisclosure} from '@heroui/react';
+import {addToast, Button, modal, useDisclosure} from '@heroui/react';
 import RequestAPI from '@/helper/http';
+import ModalAddArticle from "@/components/article/ModalAddArticle";
+import MyModal from "@/components/ui/MyModal";
+import {IconCancel, IconTrash} from "@tabler/icons-react";
 
 // --- INTERFACES SESUAI JSON API ---
 interface Category {
@@ -54,6 +57,13 @@ const TableArticle: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     // State untuk melacak loading pada baris tertentu saat aksi diproses
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+    // ArticleDelete
+    const [deleteArticleID, setDeleteArticleID] = useState<string | null>(null);
+
+    // Modal
+    const modalAddArticle = useDisclosure();
+    const modalDeleteArticle = useDisclosure();
 
     // --- FUNGSI PENGAMBILAN DATA ---
     const loadArticleData = useCallback(async () => {
@@ -182,7 +192,10 @@ const TableArticle: React.FC = () => {
                             size="sm"
                             color="danger"
                             variant="light"
-                            onPress={() => handleDeleteArticle(article.uuid)}
+                            onPress={() => {
+                                modalDeleteArticle.onOpen()
+                                setDeleteArticleID(article.uuid)
+                            }}
                             disabled={isCurrentActionLoading}
                             isIconOnly
                             aria-label="Hapus Artikel"
@@ -225,16 +238,6 @@ const TableArticle: React.FC = () => {
         getCoreRowModel: getCoreRowModel()
     });
 
-    // --- HANDLER FUNCTIONS ---
-    const handleAddArticle = () => {
-        // Redirect ke halaman tambah artikel atau buka modal tambah
-        // window.location.href = '/admin/articles/create';
-        // atau
-        // openCreateModal();
-
-        console.log('Add new article');
-    };
-
     const handleUpdateArticle = async (articleUuid: string) => {
         setActionLoading(articleUuid);
 
@@ -260,35 +263,47 @@ const TableArticle: React.FC = () => {
         }
     };
 
-    const handleDeleteArticle = async (articleUuid: string) => {
-        if (!confirm('Apakah Anda yakin ingin menghapus artikel ini? Tindakan ini tidak dapat dibatalkan.')) {
-            return;
-        }
-
-        setActionLoading(articleUuid);
-
+    const handleDeleteArticle = async () => {
         try {
-            // Implementasi delete artikel - sesuaikan dengan API endpoint Anda
-            // const response = await RequestAPI(`/article/${articleUuid}`, 'delete');
+            setLoading(true);
+            const response = await RequestAPI('/article/delete/' + deleteArticleID, 'delete');
 
-            // Untuk sementara, simulasi API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            if (response.status === 200) {
+                addToast({
+                    title: 'Success',
+                    description: 'Berhasil Menghapus Artikel',
+                    color: 'success',
+                })
+                setLoading(false)
+                modalDeleteArticle.onClose()
+                await loadArticleData()
+            } else {
+                addToast({
+                    title: 'Error',
+                    description: response.message,
+                    color: 'danger',
+                })
+                throw new Error(response.message || 'Gagal menghapus artikel');
+            }
 
-            // Refresh data setelah berhasil delete
-            await loadArticleData();
-
-            console.log('Delete article:', articleUuid);
-
-        } catch (error) {
-            console.error('Failed to delete article:', error);
-            // Handle error (show toast, etc.)
-        } finally {
-            setActionLoading(null);
+            setLoading(false);
+        } catch (error: any) {
+            addToast({
+                title: 'Error',
+                description: error.message,
+                color: 'danger',
+            })
+            console.error('Submit error:', error);
+            alert(error.message || 'Terjadi kesalahan saat menghapus artikel');
         }
-    };
+    }
+
+    const handleSuccessAction = React.useCallback(() => {
+        loadArticleData();
+    }, [loadArticleData])
 
     // --- RENDER ---
-    return (
+    return <>
         <div className="min-h-screen bg-black text-zinc-300 p-4 sm:p-6">
             <div className="max-w-7xl mx-auto">
                 <header className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -300,7 +315,7 @@ const TableArticle: React.FC = () => {
                         color="primary"
                         variant="solid"
                         size="md"
-                        onPress={handleAddArticle}
+                        onPress={modalAddArticle.onOpen}
                         startContent={<Plus className="w-4 h-4" />}
                         className="self-start sm:self-auto"
                     >
@@ -394,7 +409,27 @@ const TableArticle: React.FC = () => {
                 </div>
             </div>
         </div>
-    );
+        <ModalAddArticle
+            isOpen={modalAddArticle.isOpen}
+            onOpen={modalAddArticle.onOpen}
+            onOpenChange={modalAddArticle.onOpenChange}
+            onClose={modalAddArticle.onClose}
+            onSubmitSuccess={handleSuccessAction}
+        />
+        <MyModal title="Hapus Artikel" onOpen={modalDeleteArticle.onOpen} isOpen={modalDeleteArticle.isOpen} onOpenChange={modalDeleteArticle.onOpenChange}>
+            <div className="flex gap-1">
+                <Button
+                    onPress={handleDeleteArticle}
+                    isLoading={loading}
+                    color="default" className="text-white hover:text-black w-6/12" variant="ghost">
+                    <IconTrash /> Hapus
+                </Button>
+                <Button isLoading={loading} color="danger" className="w-6/12" variant="solid">
+                    <IconCancel /> Batal
+                </Button>
+            </div>
+        </MyModal>
+    </>;
 };
 
 export default TableArticle;
