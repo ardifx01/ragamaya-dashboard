@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import {
-    IconDashboard, IconNews,
+    IconDashboard, IconDeviceGamepad3, IconNews,
     IconWallet
 } from "@tabler/icons-react";
 import SidebarContent from "@/components/ui/sidebar/SidebarContent";
@@ -29,6 +29,11 @@ export default function Sidebar(props: SidebarProps) {
             label: "Artikel",
             href: "/article", // Update to the actual route
             icon: <IconNews className="h-5 w-5 shrink-0 text-gray-300" />,
+        },
+        {
+            label: "Kuis",
+            href: "/quiz", // Update to the actual route
+            icon: <IconDeviceGamepad3 className="h-5 w-5 shrink-0 text-gray-300" />,
         },
     ];
 
