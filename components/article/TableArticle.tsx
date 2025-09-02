@@ -297,9 +297,9 @@ const TableArticle: React.FC = () => {
         modalEditArticle.onOpenChange();
     };
 
-    const handleSuccessAction = React.useCallback(() => {
-        loadArticleData();
-    }, [loadArticleData])
+    const handleSuccessAction = async () => {
+        await loadArticleData();
+    }
 
     // --- RENDER ---
     return <>

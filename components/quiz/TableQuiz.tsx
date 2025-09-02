@@ -278,9 +278,9 @@ const TableQuiz: React.FC = () => {
         }
     }
 
-    const handleSuccessAction = React.useCallback(() => {
-        loadQuizData();
-    }, [loadQuizData])
+    const handleSuccessAction = async () => {
+        await loadQuizData();
+    }
 
     // --- RENDER ---
     return <>
