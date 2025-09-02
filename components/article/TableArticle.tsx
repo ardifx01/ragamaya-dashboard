@@ -13,6 +13,8 @@ import RequestAPI from '@/helper/http';
 import ModalAddArticle from "@/components/article/ModalAddArticle";
 import MyModal from "@/components/ui/MyModal";
 import {IconCancel, IconTrash} from "@tabler/icons-react";
+import ModalEditArticle from "@/components/article/ModalEditArticle";
+import {article} from "framer-motion/m";
 
 // --- INTERFACES SESUAI JSON API ---
 interface Category {
@@ -27,6 +29,11 @@ interface ArticleItem {
     thumbnail: string;
     created_at: string;
     category: Category;
+}
+
+interface EditDataArticle {
+    uuid: string;
+    slug: string;
 }
 
 // --- FUNGSI FETCH DATA ---
@@ -60,9 +67,11 @@ const TableArticle: React.FC = () => {
 
     // ArticleDelete
     const [deleteArticleID, setDeleteArticleID] = useState<string | null>(null);
+    const [editArticleData, setEditArticleData] = useState<EditDataArticle | null>(null);
 
     // Modal
     const modalAddArticle = useDisclosure();
+    const modalEditArticle = useDisclosure();
     const modalDeleteArticle = useDisclosure();
 
     // --- FUNGSI PENGAMBILAN DATA ---
@@ -169,8 +178,9 @@ const TableArticle: React.FC = () => {
                             color="primary"
                             variant="light"
                             onPress={() => {
+                                const clientURL = process.env.NEXT_PUBLIC_CLIENT_URL;
                                 // Navigate to article detail or open in new tab
-                                window.open(`/article/${article.slug}`, '_blank');
+                                window.open(`${clientURL}/edukasi/${article.slug}`, '_blank');
                             }}
                             isIconOnly
                             aria-label="Lihat Artikel"
@@ -181,7 +191,14 @@ const TableArticle: React.FC = () => {
                             size="sm"
                             color="warning"
                             variant="light"
-                            onPress={() => handleUpdateArticle(article.uuid)}
+                            onPress={() => {
+                                modalEditArticle.onOpen()
+                                setActionLoading(article.uuid);
+                                setEditArticleData({
+                                    uuid: article.uuid,
+                                    slug: article.slug,
+                                })
+                            }}
                             disabled={isCurrentActionLoading}
                             isIconOnly
                             aria-label="Edit Artikel"
@@ -238,31 +255,6 @@ const TableArticle: React.FC = () => {
         getCoreRowModel: getCoreRowModel()
     });
 
-    const handleUpdateArticle = async (articleUuid: string) => {
-        setActionLoading(articleUuid);
-
-        try {
-            // Implementasi update artikel - sesuaikan dengan API endpoint Anda
-            // const response = await RequestAPI(`/article/${articleUuid}`, 'put', updateData);
-
-            // Untuk sementara, simulasi API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // Redirect ke halaman edit atau buka modal edit
-            // window.location.href = `/admin/articles/edit/${articleUuid}`;
-            // atau
-            // openEditModal(articleUuid);
-
-            console.log('Update article:', articleUuid);
-
-        } catch (error) {
-            console.error('Failed to update article:', error);
-            // Handle error (show toast, etc.)
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
     const handleDeleteArticle = async () => {
         try {
             setLoading(true);
@@ -297,6 +289,13 @@ const TableArticle: React.FC = () => {
             alert(error.message || 'Terjadi kesalahan saat menghapus artikel');
         }
     }
+
+    const handleEditModalClose = (isOpen: boolean) => {
+        if (!isOpen) {
+            setActionLoading(null);
+        }
+        modalEditArticle.onOpenChange();
+    };
 
     const handleSuccessAction = React.useCallback(() => {
         loadArticleData();
@@ -414,6 +413,15 @@ const TableArticle: React.FC = () => {
             onOpen={modalAddArticle.onOpen}
             onOpenChange={modalAddArticle.onOpenChange}
             onClose={modalAddArticle.onClose}
+            onSubmitSuccess={handleSuccessAction}
+        />
+        <ModalEditArticle
+            isOpen={modalEditArticle.isOpen}
+            onOpen={modalEditArticle.onOpen}
+            onOpenChange={handleEditModalClose}
+            onClose={modalEditArticle.onClose}
+            slug={editArticleData?.slug ?? null}
+            uuid={editArticleData?.uuid ?? null}
             onSubmitSuccess={handleSuccessAction}
         />
         <MyModal title="Hapus Artikel" onOpen={modalDeleteArticle.onOpen} isOpen={modalDeleteArticle.isOpen} onOpenChange={modalDeleteArticle.onOpenChange}>
