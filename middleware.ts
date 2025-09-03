@@ -1,39 +1,74 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { decodeJwt } from 'jose';
+
+// Fungsi untuk memeriksa apakah token sudah kedaluwarsa
+function isTokenExpired(token: string): boolean {
+    try {
+        const payload = decodeJwt(token);
+
+        // Cek apakah payload memiliki properti 'exp'
+        if (payload && typeof payload.exp === 'number') {
+            const currentTimeInSeconds = Math.floor(Date.now() / 1000);
+
+            // Jika waktu kedaluwarsa sudah lewat dari waktu sekarang, kembalikan true
+            return payload.exp < currentTimeInSeconds;
+        }
+
+        // Anggap token tidak valid jika tidak punya 'exp'
+        return true;
+    } catch (error) {
+        // Anggap token tidak valid jika gagal di-decode
+        console.error("Gagal mendekode token:", error);
+        return true;
+    }
+}
+
 
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
-    const hasToken = request.cookies.has('access_token');
+    const accessToken = request.cookies.get('access_token')?.value;
 
-    // 1. Jika pengguna sudah login dan mencoba mengakses halaman login
-    // -> Alihkan ke halaman utama/dashboard
-    if (hasToken && pathname.startsWith('/login')) {
+    const publicPaths = ['/login', '/register'];
+    const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
+
+    // --- LOGIKA UTAMA ---
+
+    // 1. Cek apakah ada token
+    if (!accessToken) {
+        // Jika tidak ada token dan mencoba akses halaman privat, alihkan ke login
+        if (!isPublicPath) {
+            return NextResponse.redirect(new URL('/login', request.url));
+        }
+        // Jika di halaman publik, biarkan saja
+        return NextResponse.next();
+    }
+
+    // 2. Jika ada token, cek apakah sudah kedaluwarsa
+    const tokenHasExpired = isTokenExpired(accessToken);
+
+    if (tokenHasExpired) {
+        // Jika token kedaluwarsa, hapus cookie dan alihkan ke login
+        const response = NextResponse.redirect(new URL('/login', request.url));
+        response.cookies.delete('access_token');
+        response.cookies.delete('refresh_token');
+        return response;
+    }
+
+    // 3. Jika token ada dan valid (belum kedaluwarsa)
+    // dan pengguna mencoba akses halaman login, alihkan ke dashboard
+    if (!tokenHasExpired && isPublicPath) {
         return NextResponse.redirect(new URL('/', request.url));
     }
 
-    // 2. Jika pengguna belum login dan mencoba mengakses halaman yang dilindungi
-    // -> Alihkan ke halaman login
-    // Logika ini melindungi semua path KECUALI path '/login' itu sendiri.
-    if (!hasToken && !pathname.startsWith('/login')) {
-        return NextResponse.redirect(new URL('/login', request.url));
-    }
-
-    // Jika tidak ada kondisi di atas yang terpenuhi, lanjutkan seperti biasa
+    // 4. Jika token valid dan akses halaman privat, lanjutkan
     return NextResponse.next();
 }
 
+
 // Konfigurasi Matcher
-// Middleware ini hanya akan berjalan pada path yang cocok dengan regex di bawah.
-// Ini mencegah middleware berjalan pada file statis, gambar, dll.
 export const config = {
     matcher: [
-        /*
-         * Cocokkan semua path KECUALI:
-         * - /api (rute API)
-         * - /_next/static (file statis)
-         * - /_next/image (file optimasi gambar)
-         * - /favicon.ico (file favicon)
-         */
         '/((?!api|_next/static|_next/image|favicon.ico).*)',
     ],
 };

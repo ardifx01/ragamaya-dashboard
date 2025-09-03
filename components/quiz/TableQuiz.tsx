@@ -8,11 +8,12 @@ import {
     createColumnHelper,
 } from '@tanstack/react-table';
 import { Loader2, Search, Filter, RefreshCw, Edit, Trash2, Eye, Plus, HelpCircle, Clock } from 'lucide-react';
-import {addToast, Button, modal, useDisclosure} from '@heroui/react';
+import {addToast, Button, useDisclosure} from '@heroui/react';
 import RequestAPI from '@/helper/http';
 import MyModal from "@/components/ui/MyModal";
 import { IconCancel, IconTrash } from "@tabler/icons-react";
 import ModalAddQuiz from "@/components/quiz/ModalAddQuiz";
+import ModalEditQuiz from "@/components/quiz/ModalEditQuiz";
 // Impor modal untuk kuis, misalnya:
 // import ModalAddQuiz from "@/components/quiz/ModalAddQuiz";
 
@@ -31,6 +32,11 @@ interface QuizItem {
     minimum_score: number;
     total_questions: number;
     category: Category;
+}
+
+interface DataEditQuiz {
+    uuid: string;
+    slug: string;
 }
 
 // --- FUNGSI FETCH DATA ---
@@ -62,11 +68,13 @@ const TableQuiz: React.FC = () => {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
 
     // QuizDelete
+    const [dataEditQuiz, setDataEditQuiz] = useState<DataEditQuiz | null>(null);
     const [deleteQuizID, setDeleteQuizID] = useState<string | null>(null);
 
     // Modal
     // Ganti dengan modal untuk menambah kuis
     const modalAddQuiz = useDisclosure();
+    const modalEditQuiz = useDisclosure();
     const modalDeleteQuiz = useDisclosure();
 
     // --- FUNGSI PENGAMBILAN DATA ---
@@ -176,7 +184,14 @@ const TableQuiz: React.FC = () => {
                             size="sm"
                             color="warning"
                             variant="light"
-                            onPress={() => handleUpdateQuiz(quiz.uuid)}
+                            onPress={() => {
+                                modalEditQuiz.onOpen()
+                                setActionLoading(quiz.uuid)
+                                setDataEditQuiz({
+                                    uuid: quiz.uuid,
+                                    slug: quiz.slug,
+                                })
+                            }}
                             disabled={isCurrentActionLoading}
                             isIconOnly
                             aria-label="Edit Kuis"
@@ -233,20 +248,6 @@ const TableQuiz: React.FC = () => {
         getCoreRowModel: getCoreRowModel()
     });
 
-    const handleUpdateQuiz = async (quizUuid: string) => {
-        setActionLoading(quizUuid);
-        try {
-            // Implementasi update kuis, misalnya redirect ke halaman edit
-            console.log('Update quiz:', quizUuid);
-            // window.location.href = `/admin/quizzes/edit/${quizUuid}`;
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        } catch (error) {
-            console.error('Failed to update quiz:', error);
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
     const handleDeleteQuiz = async () => {
         if (!deleteQuizID) return;
         setLoading(true);
@@ -276,6 +277,11 @@ const TableQuiz: React.FC = () => {
             setLoading(false);
             setDeleteQuizID(null);
         }
+    }
+
+    const handleEditModalOnClose = () => {
+        setActionLoading(null)
+        modalEditQuiz.onClose();
     }
 
     const handleSuccessAction = async () => {
@@ -395,6 +401,16 @@ const TableQuiz: React.FC = () => {
             onOpen={modalAddQuiz.onOpen}
             onOpenChange={modalAddQuiz.onOpenChange}
             onClose={modalAddQuiz.onClose}
+            onSubmitSuccess={handleSuccessAction}
+        />
+
+        <ModalEditQuiz
+            uuid={dataEditQuiz?.uuid ?? ''}
+            slug={dataEditQuiz?.slug ?? ''}
+            isOpen={modalEditQuiz.isOpen}
+            onOpen={modalEditQuiz.onOpen}
+            onOpenChange={modalEditQuiz.onOpenChange}
+            onClose={handleEditModalOnClose}
             onSubmitSuccess={handleSuccessAction}
         />
 
