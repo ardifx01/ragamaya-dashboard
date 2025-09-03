@@ -5,28 +5,11 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {Input, Button, Textarea, Card, CardBody, addToast, Select, SelectItem} from '@heroui/react';
-import { FilePond, registerPlugin } from 'react-filepond';
-import FilePondPluginImageExifOrientation from 'filepond-plugin-image-exif-orientation';
-import FilePondPluginImagePreview from 'filepond-plugin-image-preview';
-import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
-import FilePondPluginFileValidateSize from 'filepond-plugin-file-validate-size';
-
-// Import FilePond styles
-import 'filepond/dist/filepond.min.css';
-import 'filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css';
 import RequestAPI from '@/helper/http';
 import MyModal from "@/components/ui/MyModal";
 import {IconPlus, IconTrash} from "@tabler/icons-react";
 
-// Register the plugins
-registerPlugin(
-    FilePondPluginImageExifOrientation,
-    FilePondPluginImagePreview,
-    FilePondPluginFileValidateType,
-    FilePondPluginFileValidateSize
-);
-
-// --- Types ---
+// Tipe dan antarmuka tetap sama
 interface QuizQuestion {
     question: string;
     options: string[];
@@ -51,11 +34,12 @@ interface CreateQuizModalProps {
     onSubmitSuccess?: () => void;
 }
 
-// --- Validation Schema ---
+// --- PERUBAHAN 1: Skema Validasi Disesuaikan ---
+// Kita pastikan ada pesan error jika tidak ada jawaban yang dipilih
 const questionSchema = z.object({
     question: z.string().min(10, "Pertanyaan minimal 10 karakter"),
     options: z.array(z.string().min(1, "Opsi tidak boleh kosong")).length(4, "Harus ada 4 opsi"),
-    answer_index: z.number().int().min(0).max(3, "Pilih salah satu jawaban yang benar"),
+    answer_index: z.number({ message: "Anda harus memilih satu jawaban yang benar" }).int().min(0).max(3),
 });
 
 const quizSchema = z.object({
@@ -76,13 +60,13 @@ const levelOptions = [
     { key: 'advanced', label: 'Advanced' },
 ];
 
-// --- Main Component ---
+// --- Komponen Utama ---
 const ModalCreateQuiz: React.FC<CreateQuizModalProps> = ({
- isOpen,
- onOpen,
- onClose,
- onOpenChange,
- onSubmitSuccess
+    isOpen,
+    onOpen,
+    onClose,
+    onOpenChange,
+    onSubmitSuccess
 }) => {
     const {
         register,
@@ -94,6 +78,8 @@ const ModalCreateQuiz: React.FC<CreateQuizModalProps> = ({
         setValue
     } = useForm<QuizFormData>({
         resolver: zodResolver(quizSchema),
+        // --- PERUBAHAN 2: Nilai Default Disesuaikan ---
+        // Kita set answer_index ke -1 agar user dipaksa memilih
         defaultValues: {
             title: '',
             desc: '',
@@ -102,9 +88,9 @@ const ModalCreateQuiz: React.FC<CreateQuizModalProps> = ({
             estimate: 5,
             minimum_score: 70,
             questions: [
-                { question: '', options: ['', '', '', ''], answer_index: 0 },
-                { question: '', options: ['', '', '', ''], answer_index: 0 },
-                { question: '', options: ['', '', '', ''], answer_index: 0 },
+                { question: '', options: ['', '', '', ''], answer_index: -1 },
+                { question: '', options: ['', '', '', ''], answer_index: -1 },
+                { question: '', options: ['', '', '', ''], answer_index: -1 },
             ]
         }
     });
@@ -114,12 +100,12 @@ const ModalCreateQuiz: React.FC<CreateQuizModalProps> = ({
         name: "questions"
     });
 
-    const thumbnailPond = useRef<FilePond>(null);
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
 
+    // --- PERUBAHAN 3: Fungsi addQuestion Disesuaikan ---
     const addQuestion = () => {
         if (fields.length < 20) {
-            append({ question: '', options: ['', '', '', ''], answer_index: 0 });
+            append({ question: '', options: ['', '', '', ''], answer_index: -1 });
         }
     };
 
@@ -131,45 +117,20 @@ const ModalCreateQuiz: React.FC<CreateQuizModalProps> = ({
 
     const onSubmit = async (data: QuizFormData) => {
         try {
-            const quizData = {
-                title: data.title,
-                desc: data.desc,
-                level: data.level,
-                category: data.category,
-                estimate: data.estimate,
-                minimum_score: data.minimum_score,
-                questions: data.questions,
-                ...(thumbnailUrl && { thumbnail: thumbnailUrl })
-            };
-
-            console.log("Data siap dikirim ke API:", quizData);
+            const quizData = { ...data, ...(thumbnailUrl && { thumbnail: thumbnailUrl }) };
             const response = await RequestAPI('/quiz/create', 'post', quizData);
 
             if (response.status === 200) {
-                addToast({
-                    title: 'Success',
-                    description: 'Berhasil Membuat Kuis Baru',
-                    color: 'success',
-                });
+                addToast({ title: 'Success', description: 'Berhasil Membuat Kuis Baru', color: 'success' });
                 reset();
                 setThumbnailUrl(null);
-                thumbnailPond.current?.removeFiles();
                 onClose();
                 onSubmitSuccess?.();
             } else {
-                addToast({
-                    title: 'Error',
-                    description: response.message || 'Gagal membuat kuis',
-                    color: 'danger',
-                });
                 throw new Error(response.message || 'Gagal membuat kuis');
             }
         } catch (error: any) {
-            addToast({
-                title: 'Error',
-                description: 'Gagal membuat kuis',
-                color: 'danger',
-            });
+            addToast({ title: 'Error', description: error.message || 'Terjadi kesalahan', color: 'danger' });
             console.error('Submit error:', error);
         }
     };
@@ -178,7 +139,6 @@ const ModalCreateQuiz: React.FC<CreateQuizModalProps> = ({
         if (!isOpen) {
             reset();
             setThumbnailUrl(null);
-            thumbnailPond.current?.removeFiles();
         }
         onOpenChange(isOpen);
     };
@@ -194,223 +154,85 @@ const ModalCreateQuiz: React.FC<CreateQuizModalProps> = ({
             onOpenChange={handleModalClose}
         >
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                {/* Basic Quiz Info */}
+                {/* Bagian Info Kuis (Tidak berubah) */}
                 <div className="space-y-4">
-                    <Input
-                        {...register("title")}
-                        label="Judul Kuis"
-                        placeholder="Contoh: Mengenal Batik Nusantara"
-                        isInvalid={!!errors.title}
-                        errorMessage={errors.title?.message}
-                        isDisabled={isSubmitting}
-                        fullWidth
-                        classNames={{ inputWrapper: inputWrapperClassNames }}
-                    />
-
-                    <Textarea
-                        {...register("desc")}
-                        label="Deskripsi Kuis"
-                        placeholder="Jelaskan tentang kuis ini, apa yang akan dipelajari peserta..."
-                        isInvalid={!!errors.desc}
-                        errorMessage={errors.desc?.message}
-                        isDisabled={isSubmitting}
-                        fullWidth
-                        minRows={3}
-                        classNames={{ inputWrapper: inputWrapperClassNames }}
-                    />
-
-                    <Input
-                        {...register("category")}
-                        label="Kategori"
-                        placeholder="Contoh: Budaya"
-                        isInvalid={!!errors.category}
-                        errorMessage={errors.category?.message}
-                        isDisabled={isSubmitting}
-                        fullWidth
-                        classNames={{ inputWrapper: inputWrapperClassNames }}
-                    />
+                    <Input {...register("title")} label="Judul Kuis" placeholder="Contoh: Mengenal Batik Nusantara" isInvalid={!!errors.title} errorMessage={errors.title?.message} isDisabled={isSubmitting} fullWidth classNames={{ inputWrapper: inputWrapperClassNames }} />
+                    <Textarea {...register("desc")} label="Deskripsi Kuis" placeholder="Jelaskan tentang kuis ini..." isInvalid={!!errors.desc} errorMessage={errors.desc?.message} isDisabled={isSubmitting} fullWidth minRows={3} classNames={{ inputWrapper: inputWrapperClassNames }} />
+                    <Input {...register("category")} label="Kategori" placeholder="Contoh: Budaya" isInvalid={!!errors.category} errorMessage={errors.category?.message} isDisabled={isSubmitting} fullWidth classNames={{ inputWrapper: inputWrapperClassNames }} />
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Select
-                        {...register("level")}
-                        label="Level Kesulitan"
-                        placeholder="Pilih level"
-                        defaultSelectedKeys={["beginner"]}
-                        isInvalid={!!errors.level}
-                        errorMessage={errors.level?.message}
-                        isDisabled={isSubmitting}
-                        classNames={{ trigger: inputWrapperClassNames }}
-                    >
-                        {levelOptions.map((level) => (
-                            <SelectItem key={level.key}>
-                                {level.label}
-                            </SelectItem>
-                        ))}
+                    <Select {...register("level")} label="Level Kesulitan" placeholder="Pilih level" defaultSelectedKeys={["beginner"]} isInvalid={!!errors.level} errorMessage={errors.level?.message} isDisabled={isSubmitting} classNames={{ trigger: inputWrapperClassNames }}>
+                        {levelOptions.map((level) => (<SelectItem key={level.key}>{level.label}</SelectItem>))}
                     </Select>
-                    <Input
-                        {...register("estimate", { valueAsNumber: true })}
-                        label="Estimasi Waktu (menit)"
-                        type="number"
-                        placeholder="5"
-                        isInvalid={!!errors.estimate}
-                        errorMessage={errors.estimate?.message}
-                        isDisabled={isSubmitting}
-                        classNames={{ inputWrapper: inputWrapperClassNames }}
-                    />
-                    <Input
-                        {...register("minimum_score", { valueAsNumber: true })}
-                        label="Skor Minimum (%)"
-                        type="number"
-                        placeholder="70"
-                        isInvalid={!!errors.minimum_score}
-                        errorMessage={errors.minimum_score?.message}
-                        isDisabled={isSubmitting}
-                        classNames={{ inputWrapper: inputWrapperClassNames }}
-                    />
+                    <Input {...register("estimate", { valueAsNumber: true })} label="Estimasi Waktu (menit)" type="number" placeholder="5" isInvalid={!!errors.estimate} errorMessage={errors.estimate?.message} isDisabled={isSubmitting} classNames={{ inputWrapper: inputWrapperClassNames }} />
+                    <Input {...register("minimum_score", { valueAsNumber: true })} label="Skor Minimum (%)" type="number" placeholder="70" isInvalid={!!errors.minimum_score} errorMessage={errors.minimum_score?.message} isDisabled={isSubmitting} classNames={{ inputWrapper: inputWrapperClassNames }} />
                 </div>
 
-                {/* Questions Section */}
+                {/* Bagian Pertanyaan */}
                 <Card className="bg-zinc-900/50 border border-zinc-800">
                     <CardBody className="space-y-4">
                         <div className="flex justify-between items-center">
-                            <h4 className="text-lg font-medium text-zinc-300">
-                                Pertanyaan Kuis ({fields.length})
-                            </h4>
-                            <Button
-                                type="button"
-                                color="primary"
-                                variant="bordered"
-                                size="sm"
-                                onPress={addQuestion}
-                                isDisabled={fields.length >= 20 || isSubmitting}
-                                startContent={<IconPlus className="w-4 h-4" />}
-                            >
-                                Tambah Pertanyaan
-                            </Button>
+                            <h4 className="text-lg font-medium text-zinc-300">Pertanyaan Kuis ({fields.length})</h4>
+                            <Button type="button" color="primary" variant="bordered" size="sm" onPress={addQuestion} isDisabled={fields.length >= 20 || isSubmitting} startContent={<IconPlus className="w-4 h-4" />}>Tambah Pertanyaan</Button>
                         </div>
-
                         <div className="space-y-6">
                             {fields.map((field, questionIndex) => (
                                 <Card key={field.id} className="bg-zinc-800/50 border border-zinc-700">
                                     <CardBody className="space-y-4">
                                         <div className="flex justify-between items-center">
-                                            <h5 className="font-medium text-zinc-200">
-                                                Pertanyaan {questionIndex + 1}
-                                            </h5>
-                                            {fields.length > 3 && (
-                                                <Button
-                                                    type="button"
-                                                    color="danger"
-                                                    variant="light"
-                                                    size="sm"
-                                                    onPress={() => removeQuestion(questionIndex)}
-                                                    isDisabled={isSubmitting}
-                                                    startContent={<IconTrash className="w-4 h-4" />}
-                                                >
-                                                    Hapus
-                                                </Button>
-                                            )}
+                                            <h5 className="font-medium text-zinc-200">Pertanyaan {questionIndex + 1}</h5>
+                                            {fields.length > 3 && (<Button type="button" color="danger" variant="light" size="sm" onPress={() => removeQuestion(questionIndex)} isDisabled={isSubmitting} startContent={<IconTrash className="w-4 h-4" />} >Hapus</Button>)}
                                         </div>
+                                        <Textarea {...register(`questions.${questionIndex}.question`)} label="Pertanyaan" placeholder="Tulis pertanyaan di sini..." isInvalid={!!errors.questions?.[questionIndex]?.question} errorMessage={errors.questions?.[questionIndex]?.question?.message} isDisabled={isSubmitting} minRows={2} classNames={{ inputWrapper: inputWrapperClassNames }} />
 
-                                        <Textarea
-                                            {...register(`questions.${questionIndex}.question`)}
-                                            label="Pertanyaan"
-                                            placeholder="Tulis pertanyaan di sini..."
-                                            isInvalid={!!errors.questions?.[questionIndex]?.question}
-                                            errorMessage={errors.questions?.[questionIndex]?.question?.message}
-                                            isDisabled={isSubmitting}
-                                            minRows={2}
-                                            classNames={{ inputWrapper: inputWrapperClassNames }}
-                                        />
-
+                                        {/* --- PERUBAHAN 4: MENGGUNAKAN KOMPONEN PILIHAN JAWABAN KUSTOM --- */}
                                         <div className="space-y-3">
-                                            <p className="text-sm text-zinc-400">Pilihan Jawaban:</p>
+                                            <p className="text-sm text-zinc-400">Pilihan Jawaban (Klik pada opsi yang benar):</p>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                {[0, 1, 2, 3].map((optionIndex) => (
-                                                    <div key={optionIndex} className="flex items-center space-x-2">
-                                                        <input
-                                                            type="radio"
-                                                            name={`questions.${questionIndex}.answer_index`}
-                                                            value={optionIndex}
-                                                            onChange={() => setValue(`questions.${questionIndex}.answer_index`, optionIndex)}
-                                                            checked={watch(`questions.${questionIndex}.answer_index`) === optionIndex}
-                                                            className="text-blue-500 w-4 h-4"
-                                                            disabled={isSubmitting}
-                                                        />
-                                                        <Input
-                                                            {...register(`questions.${questionIndex}.options.${optionIndex}`)}
-                                                            placeholder={`Opsi ${String.fromCharCode(65 + optionIndex)}`}
-                                                            isInvalid={!!errors.questions?.[questionIndex]?.options?.[optionIndex]}
-                                                            errorMessage={errors.questions?.[questionIndex]?.options?.[optionIndex]?.message}
-                                                            isDisabled={isSubmitting}
-                                                            size="sm"
-                                                            classNames={{ inputWrapper: inputWrapperClassNames }}
-                                                        />
-                                                    </div>
-                                                ))}
+                                                {[0, 1, 2, 3].map((optionIndex) => {
+                                                    const currentAnswerIndex = watch(`questions.${questionIndex}.answer_index`);
+                                                    const isActive = currentAnswerIndex === optionIndex;
+
+                                                    return (
+                                                        <div
+                                                            key={optionIndex}
+                                                            onClick={() => setValue(`questions.${questionIndex}.answer_index`, optionIndex, { shouldValidate: true })}
+                                                            className={`flex items-center space-x-3 p-2 border-2 rounded-lg cursor-pointer transition-colors ${isActive ? 'border-blue-500 bg-blue-900/30' : 'border-zinc-700 hover:border-zinc-500'}`}
+                                                        >
+                                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isActive ? 'border-blue-400 bg-blue-500' : 'border-zinc-500'}`}>
+                                                                {isActive && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                                                            </div>
+                                                            <Input
+                                                                {...register(`questions.${questionIndex}.options.${optionIndex}`)}
+                                                                placeholder={`Opsi ${String.fromCharCode(65 + optionIndex)}`}
+                                                                isInvalid={!!errors.questions?.[questionIndex]?.options?.[optionIndex]}
+                                                                errorMessage={errors.questions?.[questionIndex]?.options?.[optionIndex]?.message}
+                                                                isDisabled={isSubmitting}
+                                                                size="sm"
+                                                                classNames={{ inputWrapper: "bg-transparent border-0 shadow-none p-0 px-2" }}
+                                                            />
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                             {errors.questions?.[questionIndex]?.answer_index && (
-                                                <p className="text-red-500 text-xs">
-                                                    {errors.questions[questionIndex]?.answer_index?.message}
-                                                </p>
+                                                <p className="text-red-500 text-xs mt-1">{errors.questions[questionIndex]?.answer_index?.message}</p>
                                             )}
                                         </div>
                                     </CardBody>
                                 </Card>
                             ))}
                         </div>
-
-                        {errors.questions?.root && (
-                            <p className="text-red-500 text-sm">{errors.questions.root.message}</p>
-                        )}
+                        {errors.questions?.root && (<p className="text-red-500 text-sm">{errors.questions.root.message}</p>)}
                     </CardBody>
                 </Card>
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
-                    <Button
-                        variant="bordered"
-                        onPress={() => handleModalClose(false)}
-                        isDisabled={isSubmitting}
-                    >
-                        Batal
-                    </Button>
-                    <Button
-                        type="submit"
-                        color="primary"
-                        isLoading={isSubmitting}
-                    >
-                        Buat Kuis
-                    </Button>
+                    <Button variant="bordered" onPress={() => handleModalClose(false)} isDisabled={isSubmitting}>Batal</Button>
+
+                    <Button type="submit" color="primary" isLoading={isSubmitting}>Buat Kuis</Button>
                 </div>
             </form>
-
-            <style jsx global>{`
-                .filepond-dark .filepond--root {
-                    background: rgba(39, 39, 42, 0.5);
-                    border: 1px solid rgb(39, 39, 42);
-                    border-radius: 8px;
-                }
-                .filepond-dark .filepond--panel-root {
-                    background: rgba(39, 39, 42, 0.3);
-                }
-                .filepond-dark .filepond--drop-label {
-                    color: rgb(161, 161, 170);
-                }
-                .filepond-dark .filepond--label-action {
-                    color: rgb(59, 130, 246);
-                    text-decoration: underline;
-                }
-                .filepond-dark .filepond--item {
-                    background: rgba(24, 24, 27, 0.8);
-                }
-                .filepond-dark .filepond--file-info-main {
-                    color: rgb(228, 228, 231);
-                }
-                .filepond-dark .filepond--file-info-sub {
-                    color: rgb(161, 161, 170);
-                }
-            `}</style>
         </MyModal>
     );
 };

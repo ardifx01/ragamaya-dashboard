@@ -13,17 +13,16 @@ import {
     addToast,
     Select,
     SelectItem,
-    Spinner // Import Spinner untuk loading state
+    Spinner
 } from '@heroui/react';
 import RequestAPI from '@/helper/http';
 import MyModal from "@/components/ui/MyModal";
-import {IconPlus, IconTrash} from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 
 // --- Types ---
 interface QuizQuestion {
     question: string;
     options: string[];
-    // Catatan: Asumsi answer_index akan ditambahkan saat mengedit, karena tidak ada di response detail
     answer_index: number;
 }
 
@@ -38,8 +37,7 @@ interface QuizFormData {
 }
 
 interface EditQuizModalProps {
-    slug: string; // Prop untuk mengambil detail kuis
-    uuid: string; // Prop untuk endpoint update
+    uuid: string;
     isOpen: boolean;
     onOpen: () => void;
     onOpenChange: (isOpen: boolean) => void;
@@ -47,11 +45,12 @@ interface EditQuizModalProps {
     onSubmitSuccess?: () => void;
 }
 
-// --- Validation Schema (Sama seperti sebelumnya) ---
+// --- Skema Validasi dengan Zod ---
 const questionSchema = z.object({
     question: z.string().min(10, "Pertanyaan minimal 10 karakter"),
     options: z.array(z.string().min(1, "Opsi tidak boleh kosong")).length(4, "Harus ada 4 opsi"),
-    answer_index: z.number().int().min(0).max(3, "Pilih salah satu jawaban yang benar"),
+    // Pastikan answer_index adalah angka antara 0 dan 3
+    answer_index: z.number({ message: "Anda harus memilih satu jawaban yang benar" }).int().min(0).max(3),
 });
 
 const quizSchema = z.object({
@@ -70,27 +69,26 @@ const levelOptions = [
     { key: 'advanced', label: 'Advanced' },
 ];
 
-// --- Main Component ---
+// --- Komponen Utama ---
 const ModalEditQuiz: React.FC<EditQuizModalProps> = ({
-    slug,
-    uuid,
-    isOpen,
-    onClose,
-    onOpen,
-    onOpenChange,
-    onSubmitSuccess
+ uuid,
+ isOpen,
+ onClose,
+ onOpen,
+ onOpenChange,
+ onSubmitSuccess
 }) => {
     const {
         register,
         handleSubmit,
         formState: { errors, isSubmitting },
-        reset,
         control,
         watch,
-        setValue
+        setValue, // Ambil 'setValue' dan 'watch' dari useForm
+        reset
     } = useForm<QuizFormData>({
         resolver: zodResolver(quizSchema),
-        defaultValues: { // Default values akan ditimpa oleh data dari API
+        defaultValues: {
             title: '',
             desc: '',
             level: 'beginner',
@@ -111,30 +109,23 @@ const ModalEditQuiz: React.FC<EditQuizModalProps> = ({
 
     // --- Fetch Data saat modal terbuka ---
     useEffect(() => {
-        if (isOpen && slug) {
+        if (isOpen && uuid) {
             const fetchQuizData = async () => {
                 setIsLoadingData(true);
                 setError(null);
                 try {
-                    const response = await RequestAPI(`/quiz/${slug}`, 'get');
+                    const response = await RequestAPI(`/quiz/${uuid}`, 'get');
                     if (response.status === 200) {
                         const quiz = response.body;
 
-                        // Mengisi form dengan data dari API
-                        reset({
-                            title: quiz.title,
-                            desc: quiz.desc,
-                            level: quiz.level,
-                            category: quiz.category.name, // Ambil nama kategori dari objek
-                            estimate: quiz.estimate,
-                            minimum_score: quiz.minimum_score,
-                            // Map questions, tambahkan answer_index default
-                            questions: quiz.questions.map((q: any) => ({
-                                question: q.question,
-                                options: q.options,
-                                answer_index: 0, // Default. User harus memilih ulang jawaban yang benar
-                            })),
-                        });
+                        // Mengisi form dengan data dari API menggunakan setValue dan replace
+                        setValue('title', quiz.title);
+                        setValue('desc', quiz.desc);
+                        setValue('level', quiz.level);
+                        setValue('category', quiz.category.name);
+                        setValue('estimate', quiz.estimate);
+                        setValue('minimum_score', quiz.minimum_score);
+                        replace(quiz.questions); // Gunakan 'replace' untuk memperbarui array pertanyaan
 
                     } else {
                         throw new Error(response.message || 'Gagal memuat data kuis.');
@@ -146,13 +137,17 @@ const ModalEditQuiz: React.FC<EditQuizModalProps> = ({
                 }
             };
             fetchQuizData();
+        } else {
+            // Reset form saat modal ditutup untuk membersihkan state
+            reset();
         }
-    }, [isOpen, slug, reset]);
+    }, [isOpen, uuid, setValue, replace, reset]);
 
 
     const addQuestion = () => {
         if (fields.length < 20) {
-            append({ question: '', options: ['', '', '', ''], answer_index: 0 });
+            // Saat menambah pertanyaan baru, pastikan answer_index tidak `undefined`
+            append({ question: '', options: ['', '', '', ''], answer_index: -1 }); // Gunakan -1 atau null sebagai nilai awal
         }
     };
 
@@ -162,22 +157,10 @@ const ModalEditQuiz: React.FC<EditQuizModalProps> = ({
         }
     };
 
-    // --- Submit Handler untuk Update ---
+    // --- Handler untuk Submit Update ---
     const onSubmit = async (data: QuizFormData) => {
         try {
-            // Data yang dikirim sudah lengkap sesuai state form saat ini
-            const quizData = {
-                title: data.title,
-                desc: data.desc,
-                level: data.level,
-                category: data.category,
-                estimate: data.estimate,
-                minimum_score: data.minimum_score,
-                questions: data.questions,
-            };
-
-            console.log("Data siap dikirim untuk update:", quizData);
-            const response = await RequestAPI(`/quiz/update/${uuid}`, 'post', quizData);
+            const response = await RequestAPI(`/quiz/update/${uuid}`, 'put', data);
 
             if (response.status === 200) {
                 addToast({
@@ -201,7 +184,7 @@ const ModalEditQuiz: React.FC<EditQuizModalProps> = ({
     };
 
     const handleModalClose = () => {
-        onClose()
+        onClose();
     };
 
     const inputWrapperClassNames = "bg-zinc-900/50 hover:bg-zinc-900/50 border border-zinc-800 rounded-lg data-[hover=true]:border-zinc-700 group-data-[focus=true]:border-blue-500";
@@ -225,201 +208,89 @@ const ModalEditQuiz: React.FC<EditQuizModalProps> = ({
 
         return (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                {/* Basic Quiz Info */}
+                {/* Info Dasar Kuis */}
                 <div className="space-y-4">
-                    <Input
-                        {...register("title")}
-                        label="Judul Kuis"
-                        placeholder="Contoh: Mengenal Batik Nusantara"
-                        isInvalid={!!errors.title}
-                        errorMessage={errors.title?.message}
-                        isDisabled={isSubmitting}
-                        fullWidth
-                        classNames={{ inputWrapper: inputWrapperClassNames }}
-                    />
-                    {/* ... sisa form sama seperti sebelumnya ... */}
-                    <Textarea
-                        {...register("desc")}
-                        label="Deskripsi Kuis"
-                        placeholder="Jelaskan tentang kuis ini, apa yang akan dipelajari peserta..."
-                        isInvalid={!!errors.desc}
-                        errorMessage={errors.desc?.message}
-                        isDisabled={isSubmitting}
-                        fullWidth
-                        minRows={3}
-                        classNames={{ inputWrapper: inputWrapperClassNames }}
-                    />
-
-                    <Input
-                        {...register("category")}
-                        label="Kategori"
-                        placeholder="Contoh: Budaya"
-                        isInvalid={!!errors.category}
-                        errorMessage={errors.category?.message}
-                        isDisabled={isSubmitting}
-                        fullWidth
-                        classNames={{ inputWrapper: inputWrapperClassNames }}
-                    />
+                    <Input {...register("title")} label="Judul Kuis" placeholder="Contoh: Mengenal Batik Nusantara" isInvalid={!!errors.title} errorMessage={errors.title?.message} isDisabled={isSubmitting} fullWidth classNames={{ inputWrapper: inputWrapperClassNames }}/>
+                    <Textarea {...register("desc")} label="Deskripsi Kuis" placeholder="Jelaskan tentang kuis ini..." isInvalid={!!errors.desc} errorMessage={errors.desc?.message} isDisabled={isSubmitting} fullWidth minRows={3} classNames={{ inputWrapper: inputWrapperClassNames }}/>
+                    <Input {...register("category")} label="Kategori" placeholder="Contoh: Budaya" isInvalid={!!errors.category} errorMessage={errors.category?.message} isDisabled={isSubmitting} fullWidth classNames={{ inputWrapper: inputWrapperClassNames }}/>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Select
-                        label="Level Kesulitan"
-                        placeholder="Pilih level"
-                        selectedKeys={[watch('level')]} // Gunakan watch untuk mengontrol nilai
-                        onChange={(e) => setValue('level', e.target.value as 'beginner' | 'intermediate' | 'advanced')}
-                        isInvalid={!!errors.level}
-                        errorMessage={errors.level?.message}
-                        isDisabled={isSubmitting}
-                        classNames={{ trigger: inputWrapperClassNames }}
-                    >
-                        {levelOptions.map((level) => (
-                            <SelectItem key={level.key}>
-                                {level.label}
-                            </SelectItem>
-                        ))}
+                    <Select label="Level Kesulitan" placeholder="Pilih level" selectedKeys={[watch('level')]} onChange={(e) => setValue('level', e.target.value as 'beginner' | 'intermediate' | 'advanced')} isInvalid={!!errors.level} errorMessage={errors.level?.message} isDisabled={isSubmitting} classNames={{ trigger: inputWrapperClassNames }}>
+                        {levelOptions.map((level) => (<SelectItem key={level.key}>{level.label}</SelectItem>))}
                     </Select>
-                    <Input
-                        {...register("estimate", { valueAsNumber: true })}
-                        label="Estimasi Waktu (menit)"
-                        type="number"
-                        placeholder="5"
-                        isInvalid={!!errors.estimate}
-                        errorMessage={errors.estimate?.message}
-                        isDisabled={isSubmitting}
-                        classNames={{ inputWrapper: inputWrapperClassNames }}
-                    />
-                    <Input
-                        {...register("minimum_score", { valueAsNumber: true })}
-                        label="Skor Minimum (%)"
-                        type="number"
-                        placeholder="70"
-                        isInvalid={!!errors.minimum_score}
-                        errorMessage={errors.minimum_score?.message}
-                        isDisabled={isSubmitting}
-                        classNames={{ inputWrapper: inputWrapperClassNames }}
-                    />
+                    <Input {...register("estimate", { valueAsNumber: true })} label="Estimasi Waktu (menit)" type="number" placeholder="5" isInvalid={!!errors.estimate} errorMessage={errors.estimate?.message} isDisabled={isSubmitting} classNames={{ inputWrapper: inputWrapperClassNames }}/>
+                    <Input {...register("minimum_score", { valueAsNumber: true })} label="Skor Minimum (%)" type="number" placeholder="70" isInvalid={!!errors.minimum_score} errorMessage={errors.minimum_score?.message} isDisabled={isSubmitting} classNames={{ inputWrapper: inputWrapperClassNames }}/>
                 </div>
-                {/* Questions Section */}
+
+                {/* Bagian Pertanyaan Kuis */}
                 <Card className="bg-zinc-900/50 border border-zinc-800">
                     <CardBody className="space-y-4">
                         <div className="flex justify-between items-center">
-                            <h4 className="text-lg font-medium text-zinc-300">
-                                Pertanyaan Kuis ({fields.length})
-                            </h4>
-                            <Button
-                                type="button"
-                                color="primary"
-                                variant="bordered"
-                                size="sm"
-                                onPress={addQuestion}
-                                isDisabled={fields.length >= 20 || isSubmitting}
-                                startContent={<IconPlus className="w-4 h-4" />}
-                            >
-                                Tambah Pertanyaan
-                            </Button>
+                            <h4 className="text-lg font-medium text-zinc-300">Pertanyaan Kuis ({fields.length})</h4>
+                            <Button type="button" color="primary" variant="bordered" size="sm" onPress={addQuestion} isDisabled={fields.length >= 20 || isSubmitting} startContent={<IconPlus className="w-4 h-4" />}>Tambah Pertanyaan</Button>
                         </div>
                         <div className="space-y-6">
                             {fields.map((field, questionIndex) => (
                                 <Card key={field.id} className="bg-zinc-800/50 border border-zinc-700">
                                     <CardBody className="space-y-4">
                                         <div className="flex justify-between items-center">
-                                            <h5 className="font-medium text-zinc-200">
-                                                Pertanyaan {questionIndex + 1}
-                                            </h5>
-                                            {fields.length > 3 && (
-                                                <Button
-                                                    type="button"
-                                                    color="danger"
-                                                    variant="light"
-                                                    size="sm"
-                                                    onPress={() => removeQuestion(questionIndex)}
-                                                    isDisabled={isSubmitting}
-                                                    startContent={<IconTrash className="w-4 h-4" />}
-                                                >
-                                                    Hapus
-                                                </Button>
-                                            )}
+                                            <h5 className="font-medium text-zinc-200">Pertanyaan {questionIndex + 1}</h5>
+                                            {fields.length > 3 && (<Button type="button" color="danger" variant="light" size="sm" onPress={() => removeQuestion(questionIndex)} isDisabled={isSubmitting} startContent={<IconTrash className="w-4 h-4" />}>Hapus</Button>)}
                                         </div>
+                                        <Textarea {...register(`questions.${questionIndex}.question`)} label="Pertanyaan" placeholder="Tulis pertanyaan di sini..." isInvalid={!!errors.questions?.[questionIndex]?.question} errorMessage={errors.questions?.[questionIndex]?.question?.message} isDisabled={isSubmitting} minRows={2} classNames={{ inputWrapper: inputWrapperClassNames }}/>
 
-                                        <Textarea
-                                            {...register(`questions.${questionIndex}.question`)}
-                                            label="Pertanyaan"
-                                            placeholder="Tulis pertanyaan di sini..."
-                                            isInvalid={!!errors.questions?.[questionIndex]?.question}
-                                            errorMessage={errors.questions?.[questionIndex]?.question?.message}
-                                            isDisabled={isSubmitting}
-                                            minRows={2}
-                                            classNames={{ inputWrapper: inputWrapperClassNames }}
-                                        />
-
+                                        {/* KONTROL PILIHAN JAWABAN KUSTOM */}
                                         <div className="space-y-3">
-                                            <p className="text-sm text-zinc-400">Pilihan Jawaban (Pilih jawaban yang benar):</p>
+                                            <p className="text-sm text-zinc-400">Pilihan Jawaban (Klik pada opsi yang benar):</p>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                {[0, 1, 2, 3].map((optionIndex) => (
-                                                    <div key={optionIndex} className="flex items-center space-x-2">
-                                                        <input
-                                                            type="radio"
-                                                            {...register(`questions.${questionIndex}.answer_index`, { valueAsNumber: true })}
-                                                            value={optionIndex}
-                                                            className="text-blue-500 w-4 h-4"
-                                                            disabled={isSubmitting}
-                                                        />
-                                                        <Input
-                                                            {...register(`questions.${questionIndex}.options.${optionIndex}`)}
-                                                            placeholder={`Opsi ${String.fromCharCode(65 + optionIndex)}`}
-                                                            isInvalid={!!errors.questions?.[questionIndex]?.options?.[optionIndex]}
-                                                            errorMessage={errors.questions?.[questionIndex]?.options?.[optionIndex]?.message}
-                                                            isDisabled={isSubmitting}
-                                                            size="sm"
-                                                            classNames={{ inputWrapper: inputWrapperClassNames }}
-                                                        />
-                                                    </div>
-                                                ))}
+                                                {[0, 1, 2, 3].map((optionIndex) => {
+                                                    const currentAnswerIndex = watch(`questions.${questionIndex}.answer_index`);
+                                                    const isActive = currentAnswerIndex === optionIndex;
+
+                                                    return (
+                                                        <div
+                                                            key={optionIndex}
+                                                            onClick={() => setValue(`questions.${questionIndex}.answer_index`, optionIndex, { shouldValidate: true })}
+                                                            className={`flex items-center space-x-3 p-2 border-2 rounded-lg cursor-pointer transition-colors ${isActive ? 'border-blue-500 bg-blue-900/30' : 'border-zinc-700 hover:border-zinc-500'}`}
+                                                        >
+                                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isActive ? 'border-blue-400 bg-blue-500' : 'border-zinc-500'}`}>
+                                                                {isActive && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                                                            </div>
+                                                            <Input
+                                                                {...register(`questions.${questionIndex}.options.${optionIndex}`)}
+                                                                placeholder={`Opsi ${String.fromCharCode(65 + optionIndex)}`}
+                                                                isInvalid={!!errors.questions?.[questionIndex]?.options?.[optionIndex]}
+                                                                errorMessage={errors.questions?.[questionIndex]?.options?.[optionIndex]?.message}
+                                                                isDisabled={isSubmitting}
+                                                                size="sm"
+                                                                classNames={{ inputWrapper: "bg-transparent border-0 shadow-none p-0 px-2" }}
+                                                            />
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                             {errors.questions?.[questionIndex]?.answer_index && (
-                                                <p className="text-red-500 text-xs">
-                                                    {errors.questions[questionIndex]?.answer_index?.message}
-                                                </p>
+                                                <p className="text-red-500 text-xs mt-1">{errors.questions[questionIndex]?.answer_index?.message}</p>
                                             )}
                                         </div>
                                     </CardBody>
                                 </Card>
                             ))}
                         </div>
-                        {errors.questions?.root && (
-                            <p className="text-red-500 text-sm">{errors.questions.root.message}</p>
-                        )}
+                        {errors.questions?.root && (<p className="text-red-500 text-sm">{errors.questions.root.message}</p>)}
                     </CardBody>
                 </Card>
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
-                    <Button
-                        variant="bordered"
-                        onPress={handleModalClose}
-                        isDisabled={isSubmitting}
-                    >
-                        Batal
-                    </Button>
-                    <Button
-                        type="submit"
-                        color="primary"
-                        isLoading={isSubmitting}
-                    >
-                        Simpan Perubahan
-                    </Button>
+                    <Button variant="bordered" onPress={handleModalClose} isDisabled={isSubmitting}>Batal</Button>
+                    <Button type="submit" color="primary" isLoading={isSubmitting}>Simpan Perubahan</Button>
                 </div>
             </form>
-        )
-    }
+        );
+    };
 
     return (
-        <MyModal
-            size="5xl"
-            title="Edit Kuis"
-            isOpen={isOpen}
-            onOpen={onOpen}
-            onOpenChange={handleModalClose}
-        >
+        <MyModal size="5xl" title="Edit Kuis" isOpen={isOpen} onOpen={onOpen} onOpenChange={handleModalClose}>
             {renderContent()}
         </MyModal>
     );

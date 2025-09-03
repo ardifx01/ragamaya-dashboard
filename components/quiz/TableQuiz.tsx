@@ -34,11 +34,6 @@ interface QuizItem {
     category: Category;
 }
 
-interface DataEditQuiz {
-    uuid: string;
-    slug: string;
-}
-
 // --- FUNGSI FETCH DATA ---
 const fetchAllQuizzes = async (): Promise<QuizItem[]> => {
     try {
@@ -68,7 +63,7 @@ const TableQuiz: React.FC = () => {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
 
     // QuizDelete
-    const [dataEditQuiz, setDataEditQuiz] = useState<DataEditQuiz | null>(null);
+    const [editQuizID, setEditQuizID] = useState<string | null>(null);
     const [deleteQuizID, setDeleteQuizID] = useState<string | null>(null);
 
     // Modal
@@ -187,10 +182,7 @@ const TableQuiz: React.FC = () => {
                             onPress={() => {
                                 modalEditQuiz.onOpen()
                                 setActionLoading(quiz.uuid)
-                                setDataEditQuiz({
-                                    uuid: quiz.uuid,
-                                    slug: quiz.slug,
-                                })
+                                setEditQuizID(quiz.uuid)
                             }}
                             disabled={isCurrentActionLoading}
                             isIconOnly
@@ -401,12 +393,11 @@ const TableQuiz: React.FC = () => {
             onOpen={modalAddQuiz.onOpen}
             onOpenChange={modalAddQuiz.onOpenChange}
             onClose={modalAddQuiz.onClose}
-            onSubmitSuccess={handleSuccessAction}
+            onSubmitSuccess={() => window.location.reload()}
         />
 
         <ModalEditQuiz
-            uuid={dataEditQuiz?.uuid ?? ''}
-            slug={dataEditQuiz?.slug ?? ''}
+            uuid={editQuizID ?? ''}
             isOpen={modalEditQuiz.isOpen}
             onOpen={modalEditQuiz.onOpen}
             onOpenChange={modalEditQuiz.onOpenChange}
