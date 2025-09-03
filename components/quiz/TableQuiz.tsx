@@ -168,7 +168,7 @@ const TableQuiz: React.FC = () => {
                             variant="light"
                             onPress={() => {
                                 // Arahkan ke halaman detail kuis
-                                window.open(`/education/quiz/${quiz.slug}`, '_blank');
+                                window.open(`${process.env.NEXT_PUBLIC_CLIENT_URL}/education/quiz/${quiz.slug}`, '_blank');
                             }}
                             isIconOnly
                             aria-label="Lihat Kuis"
