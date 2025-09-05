@@ -180,7 +180,7 @@ const TableArticle: React.FC = () => {
                             onPress={() => {
                                 const clientURL = process.env.NEXT_PUBLIC_CLIENT_URL;
                                 // Navigate to article detail or open in new tab
-                                window.open(`${clientURL}/edukasi/${article.slug}`, '_blank');
+                                window.open(`${clientURL}/education/article/${article.slug}`, '_blank');
                             }}
                             isIconOnly
                             aria-label="Lihat Artikel"
